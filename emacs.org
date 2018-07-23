@@ -1,0 +1,508 @@
+#+TITLE: Emacs Literate Configuration
+#+PROPERTY: header-args :tangle yes
+
+* Configuration
+:PROPERTIES:
+:VISIBILITY: children
+:END:
+
+** Table of Contents :TOC_3_gh:
+- [[#configuration][Configuration]]
+  - [[#about-this-file][About this file]]
+  - [[#org-file-tweaks][Org File Tweaks]]
+    - [[#automatically-tangle][Automatically Tangle]]
+    - [[#visibility-settings][Visibility Settings]]
+    - [[#table-of-contents][Table of Contents]]
+  - [[#emacs-initialization][Emacs Initialization]]
+    - [[#settings][Settings]]
+    - [[#package-management][Package Management]]
+  - [[#packages][Packages]]
+    - [[#evil][Evil]]
+    - [[#general][General]]
+    - [[#the-doom-trilogy][The Doom Trilogy]]
+    - [[#eldoc][ElDoc]]
+    - [[#which-key][Which-key]]
+    - [[#ivy][Ivy]]
+    - [[#counsel][Counsel]]
+    - [[#swiper][Swiper]]
+    - [[#treemacs][Treemacs]]
+    - [[#magit][Magit]]
+    - [[#projectile][Projectile]]
+    - [[#company][Company]]
+    - [[#org][Org]]
+    - [[#toc-org][Toc-org]]
+    - [[#language--file-support][Language & File Support]]
+  - [[#post-initialization][Post Initialization]]
+
+** About this file
+This is an Emacs literate configuration template. It contains the basic structure
+of a literate config along with some optimizations to ensure a fast load time.
+
+It is based off of gilbertw1's emacs-literate starter.
+
+** Org File Tweaks
+There are a few tweaks included in this org file that make it a little easier to
+work with.
+
+*** Automatically Tangle
+First there is a property defined on the file:
+
+#+BEGIN_SRC :tangle no
+header-args :tangle yes
+#+END_SRC
+
+This tells emacs to automatically tangle (include) all code blocks in this file when
+generating the code for the config, unless the code block explicitly includes
+=:tangle no= as the above code block does.
+
+*** Visibility Settings
+Next we have a property defined on the [[Configuration][Configuration]] heading that defines the visibility
+that tells org to show it's direct children on startup. This way a clean outline of all
+sub headings under Configuration is shown each time this file is opened in org-mode.
+
+*** Table of Contents
+Finally, there is a [[Table of Contents][Table of Contents]] heading that includes the tag: =:TOC_3_gh:=. This
+tells an org-mode package =toc-org= to generate a table of contents under this heading
+that has a max depth of 3 and is created using Github-style hrefs. This table of contents
+is updated everytime the file is saved and makes for a functional table of contents that
+works property directly on github.
+
+** Emacs Initialization
+*** Settings
+We're going to increase the gc-cons-threshold to a very high number to decrease the load and compile time.
+We'll lower this value significantly after initialization has completed. We don't want to keep this value
+too high or it will result in long GC pauses during normal usage.
+
+#+BEGIN_SRC emacs-lisp
+(eval-and-compile
+  (setq gc-cons-threshold 402653184
+        gc-cons-percentage 0.6))
+#+END_SRC
+
+Avoid loading stale byte-compiled files. Important for live-reloading the config.
+#+BEGIN_SRC emacs-lisp
+(setq load-prefer-newer t)
+#+END_SRC
+
+Disable certain byte compiler warnings to cut down on the noise. This is a personal choice and can be removed
+if you would like to see any and all byte compiler warnings.
+
+#+BEGIN_SRC emacs-lisp
+(setq byte-compile-warnings '(not free-vars unresolved noruntime lexical make-local))
+#+END_SRC
+
+Tabula rasa...
+
+Clear away all the visual noise. Toolbars, menus, scrollbars and the like.
+#+BEGIN_SRC emacs-lisp
+(menu-bar-mode -1)
+(when (fboundp 'tool-bar-mode)
+  (tool-bar-mode -1))
+(when (fboundp 'scroll-bar-mode)
+  (scroll-bar-mode -1))
+(when (fboundp 'horizontal-scroll-bar-mode)
+  (horizontal-scroll-bar-mode -1))
+(when (fboundp 'fringe-mode)
+(fringe-mode 2))
+#+END_SRC
+
+*** Package Management
+**** Package Settings
+We're going to set the =load-path= ourselves and avoid calling =(package-initilize)= (for
+performance reasons) so we need to set =package--init-file-ensured= to true to tell =package.el=
+to not automatically call it on our behalf. Additionally we're setting
+=package-enable-at-startup= to nil so that packages will not automatically be loaded for us since
+=use-package= will be handling that.
+
+#+BEGIN_SRC emacs-lisp
+;  (eval-and-compile
+;    (setq load-prefer-newer t
+;          package-user-dir "~/.emacs.d/elpa"
+;          package--init-file-ensured t
+;          package-enable-at-startup nil)
+
+;    (unless (file-directory-p package-user-dir)
+;      (make-directory package-user-dir t)))
+    (let ((bootstrap-file
+	(expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+	(bootstrap-version 4))
+    (unless (file-exists-p bootstrap-file)
+	(load-file (expand-file-name "straight-strap.el" user-emacs-directory)))
+    (load bootstrap-file nil 'nomessage))
+
+#+END_SRC
+
+**** Use-Package Settings
+Tell =use-package= to always defer loading packages unless explicitly told otherwise. This speeds up
+initialization significantly as many packages are only loaded later when they are explicitly used.
+
+#+BEGIN_SRC emacs-lisp
+  (straight-use-package 'use-package)
+  (setq straight-use-package-by-default t)
+  ; don't check for modifications on startup -- has a big impact on load time
+  (setq straight-check-for-modifications 'live)
+  (setq straight-cache-autoloads t)
+  (require 'straight)
+
+#+END_SRC
+
+** Packages
+*** Evil
+Step 0: Be Evil.
+
+I not only require it, I `:demand` it, because I seriously don't know any of Emacs'
+native key-bindings.
+
+#+BEGIN_SRC emacs-lisp
+(use-package evil
+  :demand t
+  :init
+  (setq evil-want-integration nil)
+  :config
+  (evil-mode 1))
+
+(use-package evil-collection
+  :demand t
+  :after evil
+  :config
+  (evil-collection-init))
+#+END_SRC
+
+*** General
+Step 1: Be evil, but more generally.
+
+Install a powerful General to beat all those foreign key-bindings into submission.
+One General to bind them, and a great <SPC>-leader to guide them.
+
+#+BEGIN_SRC emacs-lisp
+(defvar leader-key "SPC")
+
+(defun reload-config ()
+    (interactive)
+    (require 'org)
+    (org-babel-tangle-file "emacs.org")
+    (load-file "~/.emacs.d/emacs.el"))
+    
+(defun edit-config ()
+    (interactive)
+    (find-file "~/.emacs.d/emacs.org"))
+
+(use-package general
+  :demand t
+  :config
+  (general-define-key
+   :states '(normal visual insert emacs)
+   :prefix leader-key
+   :non-normal-prefix "C-SPC"
+
+   ;; Top level
+   "R"   '(reload-config :which-key "reload emacs")
+   "?"   '(iterm-goto-filedir-or-home :which-key "iterm - goto dir")
+   "/"   '(counsel-ag :which-key "counsel search")
+   ";"   '(counsel-M-x :which-key "M-x")
+   "SPC" '(switch-to-other-buffer :which-key "prev buffer")
+   "." '(avy-goto-word-or-subword-1  :which-key "go to char")
+
+   ;; Files
+   "f"  '(:ignore t :which-key "Files")
+   "ff" '(counsel-find-file :which-key "find file")
+   "fs" '(swiper :which-key "search in file")
+   "fe" '(edit-config :which-key "edit emacs config")
+
+   ;; Buffers
+   "b"  '(:ignore t :which-key "Buffers")
+   "bb" '(ivy-switch-buffer :which-key "swap buffer")
+
+   ;; Applications
+   "a" '(:ignore t :which-key "Applications")
+   "ae" '(eshell :which-key "eshell")
+   "as" '(shell :which-key "shell")
+
+   ;; Windows
+   "w"  '(:ignore t :which-key "Windows")
+   "w/" '(evil-window-vsplit :which-key "vsplit")
+   "w-" '(evil-window-split :which-key "split")
+   "wj" '(evil-window-down :which-key "nav down")
+   "wk" '(evil-window-up :which-key "nav up")
+   "wh" '(evil-window-left :which-key "nav left")
+   "wl" '(evil-window-right :which-key "nav right")
+   "wJ" '(evil-window-move-very-bottom :which-key "move down")
+   "wK" '(evil-window-move-very-top :which-key "move up")
+   "wH" '(evil-window-move-far-left :which-key "move left")
+   "wL" '(evil-window-move-far-right :which-key "move right")
+   ))
+#+END_SRC
+
+*** The Doom Trilogy
+#+BEGIN_SRC emacs-lisp
+(use-package doom-themes
+    :preface (defvar region-fg nil) ;workaround
+    :config
+    (load-theme 'doom-dracula t)
+    (doom-themes-visual-bell-config)
+    (doom-themes-org-config))
+    
+(use-package solaire-mode
+    :hook ((change-major-mode after-revert ediff-prepare-buffer) . turn-on-solaire-mode)
+    :config
+  (add-hook 'minibuffer-setup-hook #'solaire-mode-in-minibuffer)
+  (solaire-mode-swap-bg))
+ 
+(use-package eldoc-eval :demand t)
+(use-package shrink-path :demand t)
+(use-package all-the-icons :demand t)
+
+(use-package doom-modeline
+    :demand t
+    :straight (:host github :repo "seagle0128/doom-modeline" :branch "master")
+    :hook (after-init . doom-modeline-init))
+#+END_SRC
+*** ElDoc
+ElDoc is a built-in Emacs package for showing documentation for the the symbol at point.
+
+But it dumps it in the echo area (underneath the modeline), which is too cramped for long
+docstrings or type definitions, and bumps the modeline up all the time, which annoys me.
+
+So, this package displays that information at point instead.
+#+BEGIN_SRC emacs-lisp
+(use-package eldoc-overlay
+    :straight (:host github :repo "stardiviner/eldoc-overlay" :branch "master"))
+;    :hook (after-init . global-eldoc-overlay-mode)
+;    :config (global-eldoc-overlay-enable))
+#+END_SRC
+
+*** Which-key
+Got to throw which-key in here because I can barely remember my own bindings as
+well.
+
+#+BEGIN_SRC emacs-lisp
+(use-package which-key
+  :demand t
+  :diminish which-key-mode
+  :config
+  (which-key-mode)
+  (which-key-setup-side-window-bottom)
+  (setq which-key-sort-order 'which-key-prefix-then-key-order)
+  (setq which-key-popup-type 'side-window
+        which-key-side-window-max-height 0.5
+        which-key-side-window-max-width 0.33
+        which-key-idle-delay 0.5
+        which-key-min-display-lines 7))
+#+END_SRC
+
+*** Ivy
+
+#+BEGIN_SRC emacs-lisp
+(use-package ivy
+  :demand t
+  :config
+  ;; Escape from ivy-minibuffer in one press, not three. (???)
+  (define-key ivy-minibuffer-map [escape] 'minibuffer-keyboard-quit)
+  (setq ivy-height 15
+        ivy-wrap t
+        projectile-completion-system 'ivy
+        ivy-initial-inputs-alist nil ;; Don't prefix everything with ^
+        ivy-format-function #'ivy-format-function-line))
+  
+(use-package ivy-posframe
+  :config
+  (setq ivy-fixed-height-minibuffer nil
+        ivy-display-functions-alist (append ivy-display-functions-alist
+					'((swiper . nil)
+					    (counsel-rg . nil)
+					    (counsel-ag . nil)
+					    (t . ivy-posframe-display-at-frame-center))))
+  (ivy-posframe-enable))
+
+(use-package ivy-rich
+  :after ivy
+  :config
+  (ivy-set-display-transformer 'ivy-switch-buffer 'ivy-rich-switch-buffer-transformer)
+  (setq ivy-virtual-abbreviate 'full
+      ivy-rich-switch-buffer-align-virtual-buffer t))
+#+END_SRC
+
+*** Counsel
+
+#+BEGIN_SRC emacs-lisp
+(use-package counsel-projectile)
+(use-package counsel
+  :demand t)
+#+END_SRC
+
+*** Swiper
+
+#+BEGIN_SRC emacs-lisp
+(use-package swiper
+  :commands (swiper swiper-all))
+#+END_SRC
+
+*** Treemacs
+
+#+BEGIN_SRC emacs-lisp
+(use-package treemacs
+  :defer t
+  :init
+  (with-eval-after-load 'winum
+    (define-key winum-keymap (kbd "M-0") #'treemacs-select-window))
+  :config
+  (setq treemacs-collapse-dirs              (if (executable-find "python") 3 0)
+        treemacs-file-event-delay           5000
+        treemacs-follow-after-init          t
+        treemacs-follow-recenter-distance   0.1
+        treemacs-goto-tag-strategy          'refetch-index
+        treemacs-indentation                2
+        treemacs-indentation-string         " "
+        treemacs-is-never-other-window      nil
+        treemacs-no-png-images              nil
+        treemacs-project-follow-cleanup     nil
+        treemacs-persist-file               (expand-file-name ".cache/treemacs-persist" user-emacs-directory)
+        treemacs-recenter-after-file-follow nil
+        treemacs-recenter-after-tag-follow  nil
+        treemacs-show-hidden-files          t
+        treemacs-silent-filewatch           nil
+        treemacs-silent-refresh             nil
+        treemacs-sorting                    'alphabetic-desc
+        treemacs-space-between-root-nodes   t
+        treemacs-tag-follow-cleanup         t
+        treemacs-tag-follow-delay           1.5
+        treemacs-width                      35)
+    (treemacs-follow-mode t)
+    (treemacs-filewatch-mode t))
+;  :bind
+;  (:map global-map
+;        ("M-0"       . treemacs-select-window)
+;        ("C-x t 1"   . treemacs-delete-other-windows)
+;        ("C-x t t"   . treemacs)
+;        ("C-x t B"   . treemacs-bookmark)
+;        ("C-x t C-t" . treemacs-find-file)
+;        ("C-x t M-t" . treemacs-find-tag)))
+
+(use-package treemacs-evil
+  :after treemacs evil)
+
+(use-package treemacs-projectile
+  :after treemacs projectile)
+
+#+END_SRC
+
+
+*** Magit
+The magical git client. Let's load magit only when one of the several entry pont
+functions we invoke regularly outside of magit is called.
+
+#+BEGIN_SRC emacs-lisp
+(use-package magit
+  :commands (magit-status magit-blame magit-log-buffer-file magit-log-all))
+#+END_SRC
+
+*** Projectile
+
+#+BEGIN_SRC emacs-lisp
+(use-package projectile
+  :demand t)
+#+END_SRC
+
+*** Company
+#+BEGIN_SRC emacs-lisp
+(use-package company
+  :config
+  (global-company-mode)
+  (setq company-tooltip-limit 10)
+  (setq company-dabbrev-downcase 0)
+  (setq company-idle-delay 0)
+  (setq company-echo-delay 0)
+  (setq company-minimum-prefix-length 1)
+  (setq company-require-match nil)
+  (setq company-selection-wrap-around t)
+  (setq company-tooltip-align-annotations t)
+  (setq company-tooltip-flip-when-above t))
+#+END_SRC
+
+*** Org
+Because Org is not designed to be run without running make first, and straight.el
+does not yet support custom build steps for packages, it is possible to get
+spurious warnings from an Org installed via straight.el.
+
+Emacs also provides an outdated version of Org and there is no way to disable this.
+This is a way to install Org via straight.el without getting any warnings and without
+risking the outdated Org provided by Emacs from being loaded, as described on the
+straight.el GitHub repo.
+
+This hack basically provides the three things that Emacs' outdated version of Org
+provides, and that a correctly built version of Org would provide, but that the unbuilt
+version of Org installed by straight.el does not actually provide.
+
+#+BEGIN_SRC emacs-lisp
+(require 'subr-x)
+(straight-use-package 'git)
+
+(defun org-git-version ()
+  "The Git version of org-mode.
+Inserted by installing org-mode or when a release is made."
+  (require 'git)
+  (let ((git-repo (expand-file-name
+                   "straight/repos/org/" user-emacs-directory)))
+    (string-trim
+     (git-run "describe"
+              "--match=release\*"
+              "--abbrev=6"
+              "HEAD"))))
+
+(defun org-release ()
+  "The release version of org-mode.
+Inserted by installing org-mode or when a release is made."
+  (require 'git)
+  (let ((git-repo (expand-file-name
+                   "straight/repos/org/" user-emacs-directory)))
+    (string-trim
+     (string-remove-prefix
+      "release_"
+      (git-run "describe"
+               "--match=release\*"
+               "--abbrev=0"
+               "HEAD")))))
+
+(provide 'org-version)
+
+(straight-use-package 'org-plus-contrib)
+#+END_SRC
+
+*** Toc-org
+Let's install and load the =toc-org= package after org mode is loaded. This is the
+package that automatically generates an up to date table of contents for us.
+#+BEGIN_SRC emacs-lisp
+(use-package toc-org
+  :after org
+  :init (add-hook 'org-mode-hook #'toc-org-enable))
+#+END_SRC
+
+*** Language & File Support
+**** Typescript
+#+BEGIN_SRC emacs-lisp
+(use-package typescript-mode
+  :commands typescript-mode)
+
+(use-package tide
+  :preface
+  (defun setup-tide-mode ()
+    (tide-setup)
+    (flycheck-mode +1)
+    (setq flycheck-check-syntax-automatically '(save-mode-enabled))
+    (eldoc-mode +1)
+    (tide-hl-identifier-mode +1)
+    (company-mode +1))
+  :hook ((typescript-mode . setup-tide-mode)
+         (typescript-mode . tide-hl-identifier-mode)))
+#+END_SRC
+
+
+** Post Initialization
+
+#+BEGIN_SRC emacs-lisp
+(setq gc-cons-threshold 16777216
+      gc-cons-percentage 0.1)
+(defun display-startup-echo-area-message ()
+(message "Initialization completed in %s." (emacs-init-time)))
+#+END_SRC
+
