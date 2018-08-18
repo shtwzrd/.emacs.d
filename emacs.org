@@ -35,8 +35,11 @@
     - [[#org][Org]]
     - [[#toc-org][Toc-org]]
     - [[#language--file-support][Language & File Support]]
+      - [[#bash][Bash]]
+      - [[#css][CSS]]
       - [[#emacs-lisp][Emacs Lisp]]
-      - [[#typescript][Typescript]]
+      - [[#html][HTML]]
+      - [[#typescript][TypeScript]]
   - [[#post-initialization][Post Initialization]]
 
 ** About this file
@@ -61,12 +64,12 @@ generating the code for the config, unless the code block explicitly includes
 =:tangle no= as the above code block does.
 
 *** Visibility Settings
-Next we have a property defined on the [[Configuration][Configuration]] heading that defines the visibility
+Next there's a property defined on the [[Configuration][Configuration]] heading that defines the visibility
 that tells org to show it's direct children on startup. This way a clean outline of all
 sub headings under Configuration is shown each time this file is opened in org-mode.
 
 *** Table of Contents
-Finally, there is a [[Table of Contents][Table of Contents]] heading that includes the tag: =:TOC_3_gh:=. This
+Finally, there is a [[Table of Contents][Table of Contents]] heading that includes the tag: =:TOC_4_gh:=. This
 tells an org-mode package =toc-org= to generate a table of contents under this heading
 that has a max depth of 3 and is created using Github-style hrefs. This table of contents
 is updated everytime the file is saved and makes for a functional table of contents that
@@ -74,9 +77,9 @@ works property directly on github.
 
 ** Emacs Initialization
 *** Settings
-We're going to increase the gc-cons-threshold to a very high number to decrease the load and compile time.
-We'll lower this value significantly after initialization has completed. We don't want to keep this value
-too high or it will result in long GC pauses during normal usage.
+Increase the gc-cons-threshold to a very high number to decrease the load and compile time.
+Should be brought back down after initialization has completed. Keeping this value too high
+will result in long GC pauses during normal usage.
 
 #+BEGIN_SRC emacs-lisp
 (eval-and-compile
@@ -111,14 +114,21 @@ Clear away all the visual noise. Toolbars, menus, scrollbars and the like.
 (fringe-mode 2))
 #+END_SRC
 
+Miscellaneous preferences...
+#+BEGIN_SRC emacs-lisp
+(defalias 'yes-or-no-p 'y-or-n-p) ; just type y or n for yes and no in prompts
+(column-number-mode) ; show the column number in the modeline
+(setq-default cursor-in-non-selected-windows nil) ; only show cursor in active window
+#+END_SRC
+
 *** Package Management
 **** Package Settings
-We're going to set the =load-path= ourselves and avoid calling =(package-initilize)= (for
-performance reasons) so we need to set =package--init-file-ensured= to true to tell =package.el=
-to not automatically call it on our behalf. Additionally we're setting
-=package-enable-at-startup= to nil so that packages will not automatically be loaded for us since
-=use-package= will be handling that.
+Instead of =use-package=, use straight, a purely functional package manager for Emacs.
+It allows for a reproducible config across machines, because it has a lock-file. Additionally, it makes
+it easy to use packages from various sources (like git repos), and dead simple to modify those sources
+and potentially commit those changes upstream.
 
+Gotta bootstrap it first to use it, using the =straight-strap.el= file.
 #+BEGIN_SRC emacs-lisp
     (let ((bootstrap-file
 	(expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
@@ -129,8 +139,8 @@ to not automatically call it on our behalf. Additionally we're setting
 #+END_SRC
 
 **** Use-Package Settings
-Tell =use-package= to always defer loading packages unless explicitly told otherwise. This speeds up
-initialization significantly as many packages are only loaded later when they are explicitly used.
+Tell =use-package= to always use =straight= for acquiring packages.
+This also adds the =:straight= key to the =use-package= form, so it can understand straight recipes.
 
 #+BEGIN_SRC emacs-lisp
   (straight-use-package 'use-package)
@@ -146,8 +156,7 @@ initialization significantly as many packages are only loaded later when they ar
 *** Evil
 Step 0: Be Evil.
 
-I not only require it, I `:demand` it, because I seriously don't know any of Emacs'
-native key-bindings.
+I not only require it, I =:demand= it, because I seriously don't know any of Emacs' native key-bindings.
 
 #+BEGIN_SRC emacs-lisp
 (use-package evil
@@ -160,6 +169,8 @@ native key-bindings.
 (use-package evil-collection
   :demand t
   :after evil
+  :custom
+  (evil-collection-setup-minibuffer t)
   :config
   (evil-collection-init))
 #+END_SRC
@@ -220,7 +231,8 @@ One General to bind them, and a great <SPC>-leader to guide them.
    
    ;; Toggles
    "t" '(:ignore t :which-key "Toggles")
-   "td" '(toggle-debug-on-error t :which-key "Toggles")
+   "td" '(toggle-debug-on-error :which-key "debug on error")
+   "tn" '(linum-mode :which-key "line numbers")
 
    ;; Windows
    "w"  '(:ignore t :which-key "Windows")
@@ -271,7 +283,7 @@ Also exclude these files from showing up in recentf's listings.
 
 #+BEGIN_SRC emacs-lisp
 (use-package no-littering
-  :demand t
+ :demand t
  :config
  (progn
    (require 'no-littering)
@@ -305,7 +317,7 @@ So, this package displays that information at point instead.
 (global-eldoc-mode -1)
 (use-package eldoc-overlay
     :straight (:host github :repo "stardiviner/eldoc-overlay" :branch "master")
-    :hook (eldoc-mode . eldoc-overlay-enable)
+    :hook (prog-mode . eldoc-overlay-enable)
     :config
     (setq eldoc-overlay-backend 'posframe))
 #+END_SRC
@@ -327,6 +339,7 @@ well.
         which-key-side-window-max-width 0.33
         which-key-idle-delay 0.5
         which-key-min-display-lines 7))
+(evil-collection-which-key-setup)
 #+END_SRC
 
 *** Ivy
@@ -362,10 +375,15 @@ well.
 #+END_SRC
 
 *** Counsel
+Counsel is a set of replacements for common Emacs commands, powered by Ivy.
 
+Throw amx in here too -- it ranks M-x suggestions based on usage.
+Counsel-M-x will make use of amx if it's present.
 #+BEGIN_SRC emacs-lisp
 (use-package counsel-projectile)
 (use-package counsel
+  :demand t)
+(use-package amx
   :demand t)
 #+END_SRC
 
@@ -393,7 +411,7 @@ well.
         treemacs-indentation                2
         treemacs-indentation-string         " "
         treemacs-is-never-other-window      nil
-        treemacs-no-png-images              nil
+        treemacs-no-png-images              t
         treemacs-project-follow-cleanup     nil
         treemacs-persist-file               (expand-file-name ".cache/treemacs-persist" user-emacs-directory)
         treemacs-recenter-after-file-follow nil
@@ -526,6 +544,43 @@ package that automatically generates an up to date table of contents for us.
 #+END_SRC
 
 *** Language & File Support
+**** Bash
+This setup uses Mads Hartmann's Bash Language Server, so install that.
+
+#+BEGIN_SRC sh
+npm install -g bash-language-server
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(use-package lsp-sh
+    :straight (:host github :repo "emacs-lsp/lsp-sh" :branch "master")
+    :hook (sh-mode . lsp-sh-enable))
+#+END_SRC
+
+**** CSS
+Use the language server from VSCode to give css-mode some brains.
+
+#+BEGIN_SRC sh
+npm install -g vscode-css-languageserver-bin
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(use-package lsp-css
+    :straight (:host github :repo "emacs-lsp/lsp-css" :branch "master")
+    :config
+    (defun my-css-mode-setup ()
+	(when (eq major-mode 'css-mode)
+	    ;; Only enable in strictly css-mode, not scss-mode (css-mode-hook
+	    ;; fires for scss-mode because scss-mode is derived from css-mode)
+	    (lsp-css-enable)))
+
+    (require 'lsp-css)
+    (add-hook 'css-mode-hook  #'my-css-mode-setup)
+    (add-hook 'less-mode-hook #'lsp-less-enable)
+    (add-hook 'sass-mode-hook #'lsp-scss-enable)
+    (add-hook 'scss-mode-hook #'lsp-scss-enable))
+#+END_SRC
+
 **** Emacs Lisp
 #+BEGIN_SRC emacs-lisp
 (defun my-elisp-eldoc-function ()
@@ -546,12 +601,41 @@ package that automatically generates an up to date table of contents for us.
 	    (when (eq major-mode 'emacs-lisp-mode)
               (setq-local eldoc-documentation-function #'my-elisp-eldoc-function))))
 #+END_SRC
-**** Typescript
+**** HTML
+#+BEGIN_SRC sh
+npm install -g vscode-html-languageserver-bin
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(use-package lsp-html
+    :straight (:host github :repo "emacs-lsp/lsp-html" :branch "master")
+    :hook (html-mode lsp-html-enable)) 
+#+END_SRC
+
+**** TypeScript
+TypeScript is a typed super-set of Javascript, so this config services both.
+
+This config needs a TypeScript Language Server to work.
+
+#+BEGIN_SRC sh
+npm install -g typescript 
+npm install -g javascript-typescript-langserver
+npm install -g prettier 
+npm install -g tslint 
+#+END_SRC
+
 #+BEGIN_SRC emacs-lisp
 (use-package typescript-mode
     :commands typescript-mode
     :mode "\\.\\(js\\|jsx\\|ts\\|tsx\\)\\'"
     :hook (typescript-mode . flycheck-mode))
+
+(use-package add-node-modules-path
+    :hook (typescript-mode . #'add-node-modules-path))
+    
+(use-package prettier-js
+    :hook (typescript-mode . prettier-js-mode)
+    :config (setq prettier-js-show-errors nil))
   
 (use-package lsp-javascript-typescript
     :hook ((typescript-mode . lsp-mode) 
