@@ -20,6 +20,7 @@
     - [[#evil][Evil]]
     - [[#general][General]]
     - [[#the-doom-trilogy][The Doom Trilogy]]
+    - [[#no-littering][No-Littering]]
     - [[#misc-font-lock-minor-modes][Misc font-lock minor modes]]
     - [[#eldoc][ElDoc]]
     - [[#which-key][Which-key]]
@@ -260,6 +261,29 @@ One General to bind them, and a great <SPC>-leader to guide them.
     :straight (:host github :repo "seagle0128/doom-modeline" :branch "master")
     :hook (after-init . doom-modeline-init))
 #+END_SRC
+*** No-Littering
+Cleanliness is next to godliness.
+
+No-littering keeps various packages (builtin or otherwise) from littering the file system with their mess.
+Configuration-related files are sent to ".emacs.d/etc" and cache/temp files are banished to ".emacs.d/var".
+
+Also exclude these files from showing up in recentf's listings.
+
+#+BEGIN_SRC emacs-lisp
+(use-package no-littering
+  :demand t
+ :config
+ (progn
+   (require 'no-littering)
+   (require 'recentf)
+   (setq no-littering-etc-directory "etc/")
+   (setq no-littering-var-directory "var/")
+   (setq auto-save-file-name-transforms
+        `((".*" ,(no-littering-expand-var-file-name "auto-save/") t)))
+   (add-to-list 'recentf-exclude no-littering-var-directory)
+   (add-to-list 'recentf-exclude no-littering-etc-directory)))
+#+END_SRC
+
 *** Misc font-lock minor modes
 On the syntax highlighting spectrum, I err more on the angry fruit-salad side of things.
 
@@ -278,6 +302,7 @@ docstrings or type definitions, and bumps the modeline up all the time, which an
 
 So, this package displays that information at point instead.
 #+BEGIN_SRC emacs-lisp
+(global-eldoc-mode -1)
 (use-package eldoc-overlay
     :straight (:host github :repo "stardiviner/eldoc-overlay" :branch "master")
     :hook (eldoc-mode . eldoc-overlay-enable)
