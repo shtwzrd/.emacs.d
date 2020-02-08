@@ -1,6 +1,8 @@
-(setq load-prefer-newer t)
+;; emacs older than v27 do not load early-init.el so fallback to loading it here
+(if (version< emacs-version "27.0")
+    (load (concat user-emacs-directory "early-init.el")))
 
-(setq byte-compile-warnings '(not free-vars unresolved noruntime lexical make-local))
+(setq load-prefer-newer t)
 
 (defalias 'yes-or-no-p 'y-or-n-p) ; just type y or n for yes and no in prompts
 (column-number-mode) ; show the column number in the modeline
@@ -8,11 +10,11 @@
 
 ;; load straight.el for package management
 (let ((bootstrap-file
-    (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-    (bootstrap-version 4))
-(unless (file-exists-p bootstrap-file)
+       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
+      (bootstrap-version 4))
+  (unless (file-exists-p bootstrap-file)
     (load-file (expand-file-name "straight-strap.el" user-emacs-directory)))
-(load bootstrap-file nil 'nomessage))
+  (load bootstrap-file nil 'nomessage))
 
 ;; configure use-package integration with straight (enable :straight key)
 (straight-use-package 'use-package)
@@ -26,15 +28,15 @@
 (defvar leader-key "SPC")
 
 (defun reload-config ()
-    (interactive)
-    (straight-transaction
-	(straight-mark-transaction-as-init)
-	(load-file "~/.emacs.d/init.el")
-	(message "Reloading config... done.")))
-    
+  (interactive)
+  (straight-transaction
+    (straight-mark-transaction-as-init)
+    (load-file "~/.emacs.d/init.el")
+    (message "Reloading config... done.")))
+
 (defun edit-config ()
-    (interactive)
-    (find-file "~/.emacs.d/init.el"))
+  (interactive)
+  (find-file "~/.emacs.d/init.el"))
 
 
 ;; PACKAGES
@@ -108,53 +110,71 @@
    ))
 
 (use-package doom-themes
-    :preface (defvar region-fg nil) ;workaround
-    :config
-    (load-theme 'doom-dracula t)
-    (doom-themes-visual-bell-config)
-    (doom-themes-org-config))
-    
+  :preface (defvar region-fg nil) ;workaround
+  :config
+  (load-theme 'doom-dracula t)
+  (doom-themes-org-config))
+
 (use-package solaire-mode
-    :hook ((change-major-mode after-revert ediff-prepare-buffer) . turn-on-solaire-mode)
-    :config
+  :hook ((change-major-mode after-revert ediff-prepare-buffer) . turn-on-solaire-mode)
+  :config
   (add-hook 'minibuffer-setup-hook #'solaire-mode-in-minibuffer)
   (solaire-mode-swap-bg))
- 
+
 (use-package eldoc-eval :demand t)
 (use-package shrink-path :demand t)
 (use-package all-the-icons :demand t)
 
 (use-package doom-modeline
-    :demand t
-    :straight (:host github :repo "seagle0128/doom-modeline" :branch "master")
-    :hook (after-init . doom-modeline-mode)
-    :config
-    (setq doom-modeline-height 16)
-    (setq doom-modeline-bar-width 4))
+  :demand t
+  :straight (:host github :repo "seagle0128/doom-modeline" :branch "master")
+  :hook (after-init . doom-modeline-mode)
+  :config
+  (setq doom-modeline-height 16)
+  (setq doom-modeline-bar-width 4)
+  ;; re-def doom-modeline-set-modeline to apply to header-line-format instead
+  (defun doom-modeline-set-modeline (key &optional default)
+    (when-let ((modeline (doom-modeline key)))
+      (setf (if default
+		(default-value 'header-line-format)
+	      (buffer-local-value 'header-line-format (current-buffer)))
+	    (list "%e" modeline)))))
 
 (use-package no-littering
- :demand t
- :config
- (progn
-   (require 'no-littering)
-   (require 'recentf)
-   (setq no-littering-etc-directory (expand-file-name "etc/" user-emacs-directory))
-   (setq no-littering-var-directory (expand-file-name "var/" user-emacs-directory))
-   (setq auto-save-file-name-transforms
-	`((".*" ,(no-littering-expand-var-file-name "auto-save/") t)))
-   (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
-   (add-to-list 'recentf-exclude no-littering-var-directory)
-   (add-to-list 'recentf-exclude no-littering-etc-directory)))
+  :demand t
+  :config
+  (progn
+    (require 'no-littering)
+    (require 'recentf)
+    (setq no-littering-etc-directory (expand-file-name "etc/" user-emacs-directory))
+    (setq no-littering-var-directory (expand-file-name "var/" user-emacs-directory))
+    (setq auto-save-file-name-transforms
+	  `((".*" ,(no-littering-expand-var-file-name "auto-save/") t)))
+    (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
+    (add-to-list 'recentf-exclude no-littering-var-directory)
+    (add-to-list 'recentf-exclude no-littering-etc-directory)))
 
 (use-package rainbow-delimiters
-    :hook (prog-mode . rainbow-delimiters-mode))
+  :hook (prog-mode . rainbow-delimiters-mode))
 
-(global-eldoc-mode 1)
-(use-package eldoc-overlay
-    :straight (:host github :repo "stardiviner/eldoc-overlay" :branch "master")
-    :hook (prog-mode . eldoc-overlay-enable)
-    :config
-    (setq eldoc-overlay-backend 'posframe))
+(defun top-left-tooltip (msg)
+  "Show MSG in a tooltip, in top-left corner of the frame."
+  (let* ((top-left-alist (frame-position))
+         (tooltip-frame-parameters `((name . "tooltip")
+                                    (internal-border-width . 4)
+                                    (border-width . 2)
+                                    (left . ,(+ 10 (car top-left-alist)))
+                                    (top . ,(+ 50 (cdr top-left-alist))))))
+    (when (> (length msg) 0)
+    (tooltip-show msg))))
+
+(require 'eldoc)
+(setq eldoc-idle-delay 0.25)
+(defun my-eldoc-tooltip (format-string &rest args)
+  "Display eldoc message using `top-left-tooltip'."
+  (when format-string
+    (top-left-tooltip (apply 'format format-string args))))
+(setq eldoc-message-function #'my-eldoc-tooltip)
 
 (use-package which-key
   :demand t
@@ -180,22 +200,23 @@
 	projectile-completion-system 'ivy
 	ivy-initial-inputs-alist nil ;; Don't prefix everything with ^
 	ivy-format-function #'ivy-format-function-line))
-  
+
 (use-package ivy-posframe
   :config
   (setq ivy-fixed-height-minibuffer nil
 	ivy-display-functions-alist (append ivy-display-functions-alist
-					'((swiper . nil)
-					    (counsel-rg . nil)
-					    (counsel-ag . nil)
-					    (t . ivy-posframe-display-at-frame-center))))
+					    '((swiper . nil)
+					      (counsel-rg . nil)
+					      (counsel-ag . nil)
+					      (t . ivy-posframe-display-at-frame-center))))
   (ivy-posframe-enable))
 
 (use-package ivy-rich
   :after ivy
   :config
   (setq ivy-virtual-abbreviate 'full
-        ivy-rich-ivy-rich-path-style 'abbrev))
+	ivy-rich-ivy-rich-path-style 'abbrev))
+
 
 (use-package counsel-projectile)
 (use-package counsel
@@ -233,8 +254,8 @@
 	treemacs-tag-follow-cleanup         t
 	treemacs-tag-follow-delay           1.5
 	treemacs-width                      35)
-    (treemacs-follow-mode t)
-    (treemacs-filewatch-mode t))
+  (treemacs-follow-mode t)
+  (treemacs-filewatch-mode t))
 (use-package treemacs-evil
   :after treemacs evil)
 
@@ -261,34 +282,34 @@
   (setq company-tooltip-flip-when-above t))
 
 (use-package lsp-mode
-    :commands lsp
+  :commands lsp
+  :config
+  (use-package lsp-ui
+    :commands lsp-ui-mode
+    :hook (lsp-ui-mode . (lambda () (setq-local eldoc-documentation-function #'ignore)))
     :config
-    (use-package lsp-ui
-        :commands lsp-ui-mode
-	:hook (lsp-ui-mode . (lambda () (setq-local eldoc-documentation-function #'ignore)))
-	:config
-	(setq lsp-ui-flycheck-live-reporting nil
-	      lsp-ui-sideline-code-actions-prefix "💡 "
-	      lsp-ui-sideline-ignore-duplicate t
-	      lsp-ui-sideline-show-symbol nil
-	      lsp-ui-sideline-delay 1.0
-	      lsp-ui-doc-include-signature t
-	      lsp-ui-doc-header nil))
-    (use-package company-lsp
-        :commands company-lsp
-	:init
-	(setq company-transformers nil ; no client-side filter, let LSP server do it
-		company-lsp-async t ; force async requests from LSP
-		company-lsp-cache-candidates 'auto)
-	(push 'company-lsp company-backends))
-    (add-hook 'js2-mode-hook  #'lsp)
-    (add-hook 'typescript-mode-hook  #'lsp)
-    (add-hook 'sh-mode-hook #'lsp)
-    (add-hook 'html-mode-hook #'lsp)
-    (add-hook 'css-mode-hook  #'lsp)
-    (add-hook 'less-mode-hook #'lsp)
-    (add-hook 'sass-mode-hook #'lsp)
-    (add-hook 'scss-mode-hook #'lsp))
+    (setq lsp-ui-flycheck-live-reporting nil
+	  lsp-ui-sideline-code-actions-prefix "💡 "
+	  lsp-ui-sideline-ignore-duplicate t
+	  lsp-ui-sideline-show-symbol nil
+	  lsp-ui-sideline-delay 1.0
+	  lsp-ui-doc-include-signature t
+	  lsp-ui-doc-header nil))
+  (use-package company-lsp
+    :commands company-lsp
+    :init
+    (setq company-transformers nil ; no client-side filter, let LSP server do it
+	  company-lsp-async t ; force async requests from LSP
+	  company-lsp-cache-candidates 'auto)
+    (push 'company-lsp company-backends))
+  (add-hook 'js2-mode-hook  #'lsp)
+  (add-hook 'typescript-mode-hook  #'lsp)
+  (add-hook 'sh-mode-hook #'lsp)
+  (add-hook 'html-mode-hook #'lsp)
+  (add-hook 'css-mode-hook  #'lsp)
+  (add-hook 'less-mode-hook #'lsp)
+  (add-hook 'sass-mode-hook #'lsp)
+  (add-hook 'scss-mode-hook #'lsp))
 
 (use-package omnisharp
   :straight (:host github :repo "OmniSharp/omnisharp-emacs" :branch "master")
@@ -307,24 +328,25 @@
     "Run tests after building the solution. Mode should be one of 'single', 'fixture' or 'all'"
     (interactive)
     (let ((build-command
-           (omnisharp-post-message-curl
-            (concat (omnisharp-get-host) "buildcommand") (omnisharp--get-common-params)))
-          (test-command
-           (cdr (assoc 'TestCommand
-                       (omnisharp-post-message-curl-as-json
-                        (concat (omnisharp-get-host) "gettestcontext")
-                        (cons `("Type" . ,mode) (omnisharp--get-common-params)))))))
+	   (omnisharp-post-message-curl
+	    (concat (omnisharp-get-host) "buildcommand") (omnisharp--get-common-params)))
+	  (test-command
+	   (cdr (assoc 'TestCommand
+		       (omnisharp-post-message-curl-as-json
+			(concat (omnisharp-get-host) "gettestcontext")
+			(cons `("Type" . ,mode) (omnisharp--get-common-params)))))))
 
       (compile (concat (replace-regexp-in-string "\n$" "" build-command) " && " test-command)))))
 
+
 (defun my-elisp-eldoc-function ()
-"Wrap `elisp-eldoc-documentation-function` and enrich it with the first line of the function docstring"
-    (let* ((fnsym (car (elisp--fnsym-in-current-sexp)))
-	(doc-string (ignore-errors (documentation fnsym)))
-	(doc-first-line (car (ignore-errors (split-string doc-string "\n")))))
-	(if doc-first-line
-	    (concat (elisp-eldoc-documentation-function) "\n\n" (symbol-name fnsym) ":\n" doc-first-line)
-	    (or (elisp-eldoc-documentation-function) ""))))
+  "Wrap `elisp-eldoc-documentation-function` and enrich it with the first line of the function docstring"
+  (let* ((fnsym (car (elisp--fnsym-in-current-sexp)))
+	 (doc-string (ignore-errors (documentation fnsym)))
+	 (doc-first-line (car (ignore-errors (split-string doc-string "\n")))))
+    (if doc-first-line
+	(concat (elisp-eldoc-documentation-function) "\n\n" (symbol-name fnsym) ":\n" doc-first-line)
+      (or (elisp-eldoc-documentation-function) ""))))
 
 (add-hook 'emacs-lisp-mode-hook
 	  (lambda ()
@@ -336,40 +358,65 @@
 	      (setq-local eldoc-documentation-function #'my-elisp-eldoc-function))))
 
 (use-package lua-mode
-    :straight (:host github :repo "immerrr/lua-mode" :branch "master")
-    :mode "\\.lua\\'"
-    :interpreter "lua")
+  :straight (:host github :repo "immerrr/lua-mode" :branch "master")
+  :mode "\\.lua\\'"
+  :interpreter "lua")
 
 (use-package monroe)
 
 (use-package fennel-mode
-    :straight (:host gitlab :repo "technomancy/fennel-mode" :branch "master"))
+  :straight (:host gitlab :repo "technomancy/fennel-mode" :branch "master"))
 
-;(use-package friar 
-;:straight (:host github :repo "warreq/friar" :branch "master"))
+					;(use-package friar 
+					;:straight (:host github :repo "warreq/friar" :branch "master"))
 
 (use-package lsp-pwsh
   :straight (lsp-pwsh
-             :host github
-             :repo "kiennq/lsp-powershell")
+	     :host github
+	     :repo "kiennq/lsp-powershell")
   :hook (powershell-mode . (lambda () (require 'lsp-pwsh) (lsp)))
   :defer t)
 
 (use-package typescript-mode
-    :commands typescript-mode
-    :mode "\\.\\(js\\|jsx\\|ts\\|tsx\\)\\'"
-    :hook '((typescript-mode . flycheck-mode)
-           (typescript-mode . #'lsp )))
+  :commands typescript-mode
+  :mode "\\.\\(js\\|jsx\\|ts\\|tsx\\)\\'"
+  :hook '((typescript-mode . flycheck-mode)
+	  (typescript-mode . #'lsp )))
 
 (use-package add-node-modules-path
-    :hook (typescript-mode . #'add-node-modules-path ))
-    
+  :hook (typescript-mode . #'add-node-modules-path ))
+
 (use-package prettier-js
-    :hook (typescript-mode . prettier-js-mode)
-    :config (setq prettier-js-show-errors nil))
+  :hook (typescript-mode . prettier-js-mode)
+  :config (setq prettier-js-show-errors nil))
+
+(use-package lispy
+  :hook (prog-mode . lispy-mode))
+
+(use-package highlight-quoted
+  :hook (prog-mode . highlight-quoted-mode))
+
+(use-package highlight-numbers
+  :hook (prog-mode . highlight-numbers-mode))
+
+(use-package highlight-defined
+  :hook (emacs-lisp-mode . highlight-defined-mode))
+
+(use-package geiser
+  :hook (scheme-mode . geiser-mode)
+  :config
+  (with-eval-after-load 'geiser-guile
+    (add-to-list 'geiser-guile-load-path "~/src/guix")))
+
+(use-package guix
+  :defer t)
 
 ;; lower gc threshold back to normal
 (setq gc-cons-threshold 16777216
       gc-cons-percentage 0.1)
+
+
 (defun display-startup-echo-area-message ()
-(message "Initialization completed in %s." (emacs-init-time)))
+  (message "Initialization completed in %s." (emacs-init-time)))
+
+
