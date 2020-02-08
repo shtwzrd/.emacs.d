@@ -65,6 +65,7 @@
   (general-define-key
    :states '(normal visual insert emacs)
    :prefix leader-key
+   :keymaps 'override
    :non-normal-prefix "C-SPC"
 
    ;; Top level
